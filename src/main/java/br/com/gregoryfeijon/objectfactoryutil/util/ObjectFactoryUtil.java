@@ -50,20 +50,34 @@ public final class ObjectFactoryUtil {
     private static final Set<Class<?>> WRAPPER_TYPES = getWrapperTypes();
     private static final Predicate<Field> PREDICATE_MODIFIERS = criaPredicateModifiers();
 
-    private ObjectFactoryUtil() {
-    }
+    private ObjectFactoryUtil() {}
 
     public static <T> List<T> copyAllObjectsFromCollection(Collection<T> entitiesToCopy) {
+        verifyCollection(entitiesToCopy);
         return entitiesToCopy.stream().map(createCopy()).collect(Collectors.toList());
     }
 
     public static <T, U extends Collection<T>> U copyAllObjectsFromCollection(Collection<T> entitiesToCopy, Supplier<U> supplier) {
+        verifyCollectionAndSupplier(entitiesToCopy, supplier);
         return entitiesToCopy.stream().map(createCopy()).collect(Collectors.toCollection(supplier));
     }
 
     @SuppressWarnings("unchecked")
     private static <T> Function<T, T> createCopy() {
         return i -> (T) createFromObject(i);
+    }
+
+    private static <T, U> void verifyCollectionAndSupplier(Collection<T> entitiesToCopy, Supplier<U> supplier) {
+        verifyCollection(entitiesToCopy);
+        if (supplier == null) {
+            throw new ObjectFactoryUtilException("O tipo de coleção especificada para retorno é nulo.");
+        }
+    }
+
+    private static <T> void verifyCollection(Collection<T> entitiesToCopy) {
+        if (ValidationHelpers.collectionEmpty(entitiesToCopy)) {
+            throw new ObjectFactoryUtilException("A lista a ser copiada não possui elementos.");
+        }
     }
 
     /**
@@ -76,10 +90,11 @@ public final class ObjectFactoryUtil {
      * @throws ObjectFactoryUtilException
      */
     public static <T> Object createFromObject(T source) {
+        verifySourceObject(source);
         Object dest;
         try {
-            dest = source.getClass().newInstance();
-        } catch (InstantiationException | IllegalAccessException ex) {
+            dest = instanciateClass(source.getClass());
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException ex) {
             throw new ObjectFactoryUtilException("Erro ao criar instância da classe copiada na ObjectFactoryUtil.", ex);
         }
         createFromObject(source, dest);
@@ -111,6 +126,7 @@ public final class ObjectFactoryUtil {
      * @throws ObjectFactoryUtilException
      */
     public static <T> void createFromObject(T source, T dest) {
+        verifySourceAndDestObjects(source, dest);
         List<Field> sourceFields = getFieldsToCopy(source, dest);
         for (Field sourceField : sourceFields) {
             Optional<Field> opDestField = ReflectionUtil.getFieldsAsCollection(dest).stream()
@@ -120,6 +136,19 @@ public final class ObjectFactoryUtil {
                 Field destField = opDestField.get();
                 FieldUtil.setProtectedFieldValue(destField.getName(), dest, verifyValue(sourceField, source));
             }
+        }
+    }
+
+    private static <T> void verifySourceAndDestObjects(T source, T dest) {
+        verifySourceObject(source);
+        if (dest == null) {
+            throw new ObjectFactoryUtilException("O objeto de destino é nulo!");
+        }
+    }
+
+    private static <T> void verifySourceObject(T source) {
+        if (source == null) {
+            throw new ObjectFactoryUtilException("O objeto a ser copiado é nulo!");
         }
     }
 
