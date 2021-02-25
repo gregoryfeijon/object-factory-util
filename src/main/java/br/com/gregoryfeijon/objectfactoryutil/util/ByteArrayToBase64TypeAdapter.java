@@ -12,15 +12,10 @@ import java.lang.reflect.Type;
 import java.util.Base64;
 
 /**
- * 
  * 23/09/2020
  *
- * 
- * 
  * @author gregory.feijon
  *
- * 
- * 
  */
 
 public class ByteArrayToBase64TypeAdapter implements JsonSerializer<byte[]>, JsonDeserializer<byte[]> {

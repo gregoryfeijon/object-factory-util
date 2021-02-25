@@ -1,6 +1,7 @@
 package br.com.gregoryfeijon.objectfactoryutil.model;
 
 import br.com.gregoryfeijon.objectfactoryutil.annotation.ObjectConstructor;
+import br.com.gregoryfeijon.objectfactoryutil.exception.ObjectFactoryUtilException;
 import br.com.gregoryfeijon.objectfactoryutil.util.ObjectFactoryUtil;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,7 +21,7 @@ public class Foo implements Serializable {
 	private Bar bar;
 	private List<Bar> bars;
 
-	public Foo(Foo foo) {
+	public Foo(Foo foo) throws ObjectFactoryUtilException {
 		ObjectFactoryUtil.createFromObject(foo, this);
 	}
 	

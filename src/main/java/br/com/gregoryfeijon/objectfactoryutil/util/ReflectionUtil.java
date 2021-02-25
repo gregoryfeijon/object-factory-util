@@ -37,12 +37,12 @@ public final class ReflectionUtil {
      */
     public static Collection<Method> getMethodsAsCollection(Object object, boolean getFromSuperclass) {
         Class<?> clazz = object.getClass();
-        Collection<Method> methods = Arrays.asList(clazz.getDeclaredMethods()).stream().collect(Collectors.toList());
+        Collection<Method> methods = Arrays.stream(clazz.getDeclaredMethods()).collect(Collectors.toList());
         if (getFromSuperclass) {
             if (clazz.getSuperclass() != null) {
                 clazz = clazz.getSuperclass();
                 while (clazz != null) {
-                    methods.addAll(Arrays.asList(clazz.getDeclaredMethods()).stream().collect(Collectors.toList()));
+                    methods.addAll(Arrays.stream(clazz.getDeclaredMethods()).collect(Collectors.toList()));
                     clazz = clazz.getSuperclass();
                 }
             }
@@ -71,12 +71,12 @@ public final class ReflectionUtil {
      */
     public static Collection<Field> getFieldsAsCollection(Object object, boolean getFromSuperclass) {
         Class<?> clazz = object.getClass();
-        Collection<Field> fields = Arrays.asList(clazz.getDeclaredFields()).stream().collect(Collectors.toList());
+        Collection<Field> fields = Arrays.stream(clazz.getDeclaredFields()).collect(Collectors.toList());
         if (getFromSuperclass) {
             if (clazz.getSuperclass() != null) {
                 clazz = clazz.getSuperclass();
                 while (clazz != null) {
-                    fields.addAll(Arrays.asList(clazz.getDeclaredFields()).stream().collect(Collectors.toList()));
+                    fields.addAll(Arrays.stream(clazz.getDeclaredFields()).collect(Collectors.toList()));
                     clazz = clazz.getSuperclass();
                 }
             }

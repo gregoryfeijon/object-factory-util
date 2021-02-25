@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,29 +51,29 @@ public final class ObjectFactoryUtil {
 
     private ObjectFactoryUtil() {}
 
-    public static <T> List<T> copyAllObjectsFromCollection(Collection<T> entitiesToCopy) {
+    public static <T> List<T> copyAllObjectsFromCollection(Collection<T> entitiesToCopy) throws ObjectFactoryUtilException {
         verifyCollection(entitiesToCopy);
         return entitiesToCopy.stream().map(createCopy()).collect(Collectors.toList());
     }
 
-    public static <T, U extends Collection<T>> U copyAllObjectsFromCollection(Collection<T> entitiesToCopy, Supplier<U> supplier) {
+    public static <T, U extends Collection<T>> U copyAllObjectsFromCollection(Collection<T> entitiesToCopy, Supplier<U> supplier) throws ObjectFactoryUtilException {
         verifyCollectionAndSupplier(entitiesToCopy, supplier);
         return entitiesToCopy.stream().map(createCopy()).collect(Collectors.toCollection(supplier));
     }
 
     @SuppressWarnings("unchecked")
     private static <T> Function<T, T> createCopy() {
-        return i -> (T) createFromObject(i);
+        return LambdaExceptionUtil.rethrowFunction(i -> (T) createFromObject(i));
     }
 
-    private static <T, U> void verifyCollectionAndSupplier(Collection<T> entitiesToCopy, Supplier<U> supplier) {
+    private static <T, U> void verifyCollectionAndSupplier(Collection<T> entitiesToCopy, Supplier<U> supplier) throws ObjectFactoryUtilException {
         verifyCollection(entitiesToCopy);
         if (supplier == null) {
             throw new ObjectFactoryUtilException("O tipo de coleção especificada para retorno é nulo.");
         }
     }
 
-    private static <T> void verifyCollection(Collection<T> entitiesToCopy) {
+    private static <T> void verifyCollection(Collection<T> entitiesToCopy) throws ObjectFactoryUtilException {
         if (ValidationHelpers.collectionEmpty(entitiesToCopy)) {
             throw new ObjectFactoryUtilException("A lista a ser copiada não possui elementos.");
         }
@@ -89,7 +88,7 @@ public final class ObjectFactoryUtil {
      * @return {@link Object}
      * @throws ObjectFactoryUtilException
      */
-    public static <T> Object createFromObject(T source) {
+    public static <T> Object createFromObject(T source) throws ObjectFactoryUtilException {
         verifySourceObject(source);
         Object dest;
         try {
@@ -125,7 +124,7 @@ public final class ObjectFactoryUtil {
      * @param dest   &lt T &gt
      * @throws ObjectFactoryUtilException
      */
-    public static <T> void createFromObject(T source, T dest) {
+    public static <T> void createFromObject(T source, T dest) throws ObjectFactoryUtilException {
         verifySourceAndDestObjects(source, dest);
         List<Field> sourceFields = getFieldsToCopy(source, dest);
         for (Field sourceField : sourceFields) {
@@ -139,14 +138,14 @@ public final class ObjectFactoryUtil {
         }
     }
 
-    private static <T> void verifySourceAndDestObjects(T source, T dest) {
+    private static <T> void verifySourceAndDestObjects(T source, T dest) throws ObjectFactoryUtilException {
         verifySourceObject(source);
         if (dest == null) {
             throw new ObjectFactoryUtilException("O objeto de destino é nulo!");
         }
     }
 
-    private static <T> void verifySourceObject(T source) {
+    private static <T> void verifySourceObject(T source) throws ObjectFactoryUtilException {
         if (source == null) {
             throw new ObjectFactoryUtilException("O objeto a ser copiado é nulo!");
         }
@@ -175,8 +174,8 @@ public final class ObjectFactoryUtil {
      */
     private static <T> List<Field> getFieldsToCopy(T source, T dest) {
         List<Field> sourceFields = new ArrayList<>(ReflectionUtil.getFieldsAsCollection(source));
-        List<Field> fieldsToRemove = new LinkedList<>(sourceFields.stream()
-                .filter(PREDICATE_MODIFIERS).collect(Collectors.toList()));
+        List<Field> fieldsToRemove = sourceFields.stream()
+                .filter(PREDICATE_MODIFIERS).collect(Collectors.toCollection(ArrayList::new));
         String[] exclude = getExcludeFromAnnotation(dest);
         if (exclude != null && Array.getLength(exclude) > 0) {
             Arrays.stream(exclude).forEach(excludeField -> {
@@ -231,7 +230,7 @@ public final class ObjectFactoryUtil {
      * @param source      - T
      * @return {@link Object}
      */
-    private static <T> Object verifyValue(Field sourceField, T source) {
+    private static <T> Object verifyValue(Field sourceField, T source) throws ObjectFactoryUtilException {
         Object sourceValue = FieldUtil.getProtectedFieldValue(sourceField.getName(), source);
         if (sourceField.getType().isPrimitive() || sourceField.getType().isEnum()) {
             return sourceValue;
@@ -274,12 +273,11 @@ public final class ObjectFactoryUtil {
      * @param aClass - {@link Class}&lt ?&gt
      * @return {@link Object}
      */
-    private static Object serializingClone(Object source, Class<?> aClass) throws IOException {
-        Object clone = null;
+    private static Object serializingClone(Object source, Class<?> aClass) throws IOException, ObjectFactoryUtilException {
         if (source != null) {
-            clone = serializingClone(clone, source, aClass);
+            return serializingClone(null, source, aClass);
         }
-        return clone;
+        return null;
     }
 
     /**
@@ -291,7 +289,7 @@ public final class ObjectFactoryUtil {
      * @param aClass - {@link Class}&lt ?&gt
      * @return {@link Object}
      */
-    private static Object serializingClone(Object clone, Object source, Class<?> aClass) throws IOException {
+    private static Object serializingClone(Object clone, Object source, Class<?> aClass) throws IOException, ObjectFactoryUtilException {
         byte[] byteClone;
         if (aClass.isPrimitive() || isWrapperType(aClass)) {
             byteClone = IOUtils.serialize(source);
@@ -311,7 +309,7 @@ public final class ObjectFactoryUtil {
      * @param genericType - {@link Type}
      * @return {@link Object}
      */
-    private static Object serializingClone(Object source, Type genericType) {
+    private static Object serializingClone(Object source, Type genericType) throws ObjectFactoryUtilException {
         Object clone = null;
         if (source != null) {
             try {
@@ -347,18 +345,16 @@ public final class ObjectFactoryUtil {
      * @param byteClone   - byte[]
      * @return {@link Object}
      * @throws ObjectFactoryUtilException
-     * @throws IOException
      * @throws ClassNotFoundException
      */
     @SuppressWarnings("unchecked")
-    private static Object verifyList(Object sourceValue, Type genericType, byte[] byteClone) throws ClassNotFoundException {
+    private static Object verifyList(Object sourceValue, Type genericType, byte[] byteClone) throws ClassNotFoundException, ObjectFactoryUtilException {
         Object clone = null;
         try {
             verifyType(genericType);
             clone = desserializeCollection(byteClone, genericType);
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException ex) {
-            List<Object> aux = Collections.checkedCollection((Collection<Object>) sourceValue, Object.class).stream()
-                    .collect(Collectors.toList());
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException | ObjectFactoryUtilException ex) {
+            List<Object> aux = new ArrayList<>(Collections.checkedCollection((Collection<Object>) sourceValue, Object.class));
             if (CollectionUtils.isNotEmpty(aux)) {
                 Class<?> objectType = aux.get(0).getClass();
                 clone = desserializeCollection(byteClone, GsonUtil.getType(getRawType(genericType), objectType));
@@ -386,7 +382,7 @@ public final class ObjectFactoryUtil {
      */
     private static void verifyType(Type genericType) throws NoSuchMethodException, InvocationTargetException, ClassNotFoundException, InstantiationException, IllegalAccessException {
         ParameterizedType typeTest = (ParameterizedType) genericType;
-        for (Type type : Arrays.asList(typeTest.getActualTypeArguments())) {
+        for (Type type : typeTest.getActualTypeArguments()) {
             Class<?> clazz = Class.forName(type.getTypeName());
             if (!isPrimitiveOrEnum(clazz) && !isWrapperType(clazz)) {
                 instanciateClass(clazz);
@@ -394,7 +390,7 @@ public final class ObjectFactoryUtil {
         }
     }
 
-    private static Object desserializeCollection(byte[] byteClone, Type genericType) {
+    private static Object desserializeCollection(byte[] byteClone, Type genericType) throws ObjectFactoryUtilException {
         return GSON.fromJson(SerializationUtil.getDesserealizedObjectAsString(byteClone), genericType);
     }
 
@@ -410,7 +406,7 @@ public final class ObjectFactoryUtil {
      * @param aClass - {@link Class}&lt ?&gt
      * @return {@link Object}
      */
-    private static Object objectCopy(Object source, Class<?> aClass) {
+    private static Object objectCopy(Object source, Class<?> aClass) throws ObjectFactoryUtilException {
         try {
             Object clone = null;
             if (source != null) {
@@ -555,7 +551,6 @@ public final class ObjectFactoryUtil {
      * @return {@link Predicate}&lt{@link Field}&gt
      */
     private static Predicate<Field> criaPredicateModifiers() {
-        Predicate<Field> predicate = p -> Modifier.isStatic(p.getModifiers()) && Modifier.isFinal(p.getModifiers());
-        return predicate;
+        return p -> Modifier.isStatic(p.getModifiers()) && Modifier.isFinal(p.getModifiers());
     }
 }

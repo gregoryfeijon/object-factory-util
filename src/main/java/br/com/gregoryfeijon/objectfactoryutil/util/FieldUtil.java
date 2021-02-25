@@ -12,10 +12,9 @@ import java.util.Optional;
  */
 public final class FieldUtil {
 
-    private FieldUtil() {
-    }
+    private FieldUtil() {}
 
-    public static <T> void setProtectedFieldValue(String destFieldName, T dest, Object sourceValue) {
+    public static <T> void setProtectedFieldValue(String destFieldName, T dest, Object sourceValue) throws ObjectFactoryUtilException {
         Optional<Field> opField = getFieldByName(destFieldName, dest);
         if (opField.isPresent()) {
             Field field = opField.get();
@@ -28,7 +27,7 @@ public final class FieldUtil {
         }
     }
 
-    public static Object getProtectedFieldValue(String protectedFieldName, Object object) {
+    public static Object getProtectedFieldValue(String protectedFieldName, Object object) throws ObjectFactoryUtilException {
         Optional<Field> opField = getFieldByName(protectedFieldName, object);
         if (opField.isPresent()) {
             Field field = opField.get();
@@ -43,8 +42,7 @@ public final class FieldUtil {
     }
 
     private static Optional<Field> getFieldByName(String fieldName, Object object) {
-        Optional<Field> opField = ReflectionUtil.getFieldsAsCollection(object).stream()
+        return ReflectionUtil.getFieldsAsCollection(object).stream()
                 .filter(streamField -> streamField.getName().equalsIgnoreCase(fieldName)).findAny();
-        return opField;
     }
 }

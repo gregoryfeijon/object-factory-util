@@ -1,5 +1,10 @@
 package br.com.gregoryfeijon.objectfactoryutil.util;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
+import net.dongliu.gson.GsonJava8TypeAdapterFactory;
+
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.time.format.DateTimeFormatter;
@@ -8,18 +13,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
-
-import net.dongliu.gson.GsonJava8TypeAdapterFactory;
-
 /**
  * 
  * 26 de fev de 2020
- * 
- * 
- * 
+ *
  * @author gregory.feijon
  * 
  */
@@ -27,13 +24,12 @@ public final class GsonUtil {
 
 	private GsonUtil() {}
 
-	// QUANDO NECESSÁRIO ATRIBUTO COM O TIPO ABSTRATO! NECESSÁRIO BIBLIOTECA
-	// GSON-EXTRAS
-//    .registerTypeAdapterFactory(RuntimeTypeAdapterFactory.of(Venda.class, "type")
-//            .registerSubtype(Romaneio.class, Romaneio.class.getName())
-//            .registerSubtype(Pedido.class, Pedido.class.getName())
-//            .registerSubtype(Nfe.class, Nfe.class.getName())
-//            .registerSubtype(Sat.class, Sat.class.getName()))
+	/*
+	 QUANDO NECESSÁRIO ATRIBUTO COM O TIPO ABSTRATO! NECESSÁRIO BIBLIOTECA
+	 GSON-EXTRAS
+	    .registerTypeAdapterFactory(RuntimeTypeAdapterFactory.of(SuperFoo.class, "type")
+	            .registerSubtype(Foo.class, Foo.class.getName())
+	*/
 
 	private static final Locale BRASIL = new Locale("pt", "BR");
 	private static final GsonBuilder gsonBuilder = new GsonBuilder().disableHtmlEscaping()

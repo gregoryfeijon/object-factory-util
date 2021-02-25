@@ -11,7 +11,7 @@ import java.util.List;
  * 
  */
 
-public class ObjectFactoryUtilException extends RuntimeException {
+public class ObjectFactoryUtilException extends Exception {
 
 	private static final long serialVersionUID = -373125608135393328L;
 
