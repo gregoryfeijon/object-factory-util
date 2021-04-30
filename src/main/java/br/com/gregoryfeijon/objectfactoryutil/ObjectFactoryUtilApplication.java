@@ -24,24 +24,9 @@ public class ObjectFactoryUtilApplication {
             List<Bar> bars = createBars(Arrays.asList("First bar name", "Second bar name", "Third bar name"));
             copyListsExample(bars);
             copyObjectsExample(bars);
+            copyDifferentType(bars);
         } catch (ObjectFactoryUtilException ex) {
             LOGGER.severe("Ocorreu um erro ao copiar o objeto: \n", ex);
-        }
-    }
-
-    private static List<Bar> createBars(List<String> barNames) {
-        return IntStream.range(1, barNames.size() + 1).boxed()
-                .collect(Collectors.toMap(Function.identity(), i -> barNames.get(i - 1))).entrySet().stream()
-                .map(i -> new Bar(i.getKey(), i.getValue())).collect(Collectors.toList());
-    }
-
-    private static void compareObjects(Object object1, Object object2) throws ObjectFactoryUtilException {
-        compareObjects(object1, object2, "It's the same object!");
-    }
-
-    private static void compareObjects(Object object1, Object object2, String message) throws ObjectFactoryUtilException {
-        if (System.identityHashCode(object1) == System.identityHashCode(object2)) {
-            throw new ObjectFactoryUtilException(message);
         }
     }
 
@@ -52,9 +37,23 @@ public class ObjectFactoryUtilApplication {
         compareObjects(copyBars, copyFromCopyBars, "It's the same collection!");
     }
 
+    private static void copyDifferentType(List<Bar> bars) throws ObjectFactoryUtilException {
+        Foo foo = ObjectFactoryUtil.createFromObject(bars.get(0), Foo.class);
+        compareObjects(bars.get(0), foo);
+        isEqual(bars.get(0).getSameNameAttribute(), foo.getSameNameAttribute(), "It's not equal!");
+        List<Foo> foos = ObjectFactoryUtil.copyAllObjectsFromCollection(bars, Foo.class);
+        compareObjects(bars, foos);
+        for (Integer i : IntStream.range(0, foos.size()).boxed().collect(Collectors.toList())) {
+            compareObjects(bars.get(i), foos.get(i));
+        }
+        isEqual(foos.get(0).getSameNameAttribute(), bars.get(0).getSameNameAttribute(), "Its not equal!");
+        System.out.println(GsonUtil.getGson().toJson(bars));
+        System.out.println(GsonUtil.getGson().toJson(foos));
+    }
+
     private static void copyObjectsExample(List<Bar> bars) throws ObjectFactoryUtilException {
-        Bar bar = (Bar) ObjectFactoryUtil.createFromObject(bars.get(0));
-        Foo foo1 = new Foo(1, "this is a foo name", bar, bars);
+        Bar bar = ObjectFactoryUtil.createFromObject(bars.get(0));
+        Foo foo1 = new Foo(1, "this is a foo name", "SAME NAME", bar, bars);
         compareObjects(bar, bars.get(0));
         Foo foo2 = new Foo(foo1);
         compareObjects(foo1, foo2);
@@ -68,5 +67,27 @@ public class ObjectFactoryUtilApplication {
         }
         System.out.println(GsonUtil.getGson().toJson(foo1));
         System.out.println(GsonUtil.getGson().toJson(foo2));
+    }
+
+    private static List<Bar> createBars(List<String> barNames) {
+        return IntStream.range(1, barNames.size() + 1).boxed()
+                .collect(Collectors.toMap(Function.identity(), i -> barNames.get(i - 1))).entrySet().stream()
+                .map(i -> new Bar(i.getKey(), i.getValue(), "SAME NAME")).collect(Collectors.toList());
+    }
+
+    private static void compareObjects(Object object1, Object object2) throws ObjectFactoryUtilException {
+        compareObjects(object1, object2, "It's the same object!");
+    }
+
+    private static void compareObjects(Object object1, Object object2, String message) throws ObjectFactoryUtilException {
+        if (System.identityHashCode(object1) == System.identityHashCode(object2)) {
+            throw new ObjectFactoryUtilException(message);
+        }
+    }
+
+    private static void isEqual(Object object1, Object object2, String msg) throws ObjectFactoryUtilException {
+        if (!object1.equals(object2)) {
+            throw new ObjectFactoryUtilException(msg);
+        }
     }
 }

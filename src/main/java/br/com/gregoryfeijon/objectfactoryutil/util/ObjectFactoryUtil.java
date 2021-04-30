@@ -14,28 +14,20 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.sql.Time;
-import java.text.Format;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 12/05/2020 as 16:56:03
@@ -45,15 +37,40 @@ import java.util.stream.Collectors;
  */
 public final class ObjectFactoryUtil {
 
-    private static final Gson GSON = GsonUtil.getGson();
-    private static final Set<Class<?>> WRAPPER_TYPES = getWrapperTypes();
-    private static final Predicate<Field> PREDICATE_MODIFIERS = criaPredicateModifiers();
+    private static final Gson GSON;
+    private static final Predicate<Field> PREDICATE_MODIFIERS;
 
-    private ObjectFactoryUtil() {}
+    static {
+        GSON = GsonUtil.getGson();
+        PREDICATE_MODIFIERS = criaPredicateModifiers();
+    }
+
+    private ObjectFactoryUtil() {
+    }
 
     public static <T> List<T> copyAllObjectsFromCollection(Collection<T> entitiesToCopy) throws ObjectFactoryUtilException {
         verifyCollection(entitiesToCopy);
         return entitiesToCopy.stream().map(createCopy()).collect(Collectors.toList());
+    }
+
+    /**
+     * <strong>Método que retorna uma cópia de uma lista de objetos.</strong>
+     *
+     * <p>
+     * O Tipo da coleção retornada não precisa ser igual ao tipo da coleção
+     * copiada, basta que os objetos possuam atributos com o mesmo nome, que os
+     * valores desses atributos serão copiados.
+     * <p>
+     *
+     * @param <T>            tipo dos objetos da lista de retorno
+     * @param entitiesToCopy - {@linkplain Collection}&lt?&gt
+     * @param returnType     - {@linkplain Class}&ltT&gt
+     * @return {@linkplain List}&ltT&gt
+     * @throws ObjectFactoryUtilException - Exception interna lançada quando ocorrerem erros
+     */
+    public static <T> List<T> copyAllObjectsFromCollection(Collection<?> entitiesToCopy, Class<T> returnType) throws ObjectFactoryUtilException {
+        verifyCollection(entitiesToCopy);
+        return entitiesToCopy.stream().map(createCopy(returnType)).collect(Collectors.toList());
     }
 
     public static <T, U extends Collection<T>> U copyAllObjectsFromCollection(Collection<T> entitiesToCopy, Supplier<U> supplier) throws ObjectFactoryUtilException {
@@ -61,9 +78,45 @@ public final class ObjectFactoryUtil {
         return entitiesToCopy.stream().map(createCopy()).collect(Collectors.toCollection(supplier));
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * <strong> Método para copiar todos os elementos de uma {@linkplain Collection
+     * coleção} e retornar em um tipo escolhido de {@linkplain Collection
+     * coleção}.</strong>
+     *
+     * <p>
+     * O Tipo da coleção retornada não precisa ser igual ao tipo da coleção
+     * copiada, basta que os objetos possuam atributos com o mesmo nome, que os
+     * valores desses atributos serão copiados.
+     * <p>
+     *
+     * @param <T>            tipo dos objetos da lista de retorno
+     * @param <U>            tipo de lista a ser retornada
+     * @param entitiesToCopy - {@linkplain Collection}&lt?&gt
+     * @param supplier       - {@linkplain Supplier}&ltU&gt
+     * @param returnType     - {@linkplain Class}&ltT&gt
+     * @return U
+     * @throws ObjectFactoryUtilException - Exception interna lançada quando ocorrerem erros
+     */
+    public static <T, U extends Collection<T>> U copyAllObjectsFromCollection(Collection<?> entitiesToCopy,
+                                                                              Supplier<U> supplier, Class<T> returnType) throws ObjectFactoryUtilException {
+        verifyCollectionAndSupplier(entitiesToCopy, supplier);
+        return entitiesToCopy.stream().map(createCopy(returnType)).collect(Collectors.toCollection(supplier));
+    }
+
     private static <T> Function<T, T> createCopy() {
-        return LambdaExceptionUtil.rethrowFunction(i -> (T) createFromObject(i));
+        return LambdaExceptionUtil.rethrowFunction(ObjectFactoryUtil::createFromObject);
+    }
+
+    /**
+     * <strong>Function executada para criar a cópia dos objetos da lista
+     * passada, considerando o tipo de retorno especificado.</strong>
+     *
+     * @param <T> tipo dos objetos copiados
+     * @param <S> tipo dos objetos retornados
+     * @return {@linkplain Function}&ltT, S&gt
+     */
+    private static <T, S> Function<T, S> createCopy(Class<S> returnType) {
+        return LambdaExceptionUtil.rethrowFunction(i -> createFromObject(i, returnType));
     }
 
     private static <T, U> void verifyCollectionAndSupplier(Collection<T> entitiesToCopy, Supplier<U> supplier) throws ObjectFactoryUtilException {
@@ -74,21 +127,48 @@ public final class ObjectFactoryUtil {
     }
 
     private static <T> void verifyCollection(Collection<T> entitiesToCopy) throws ObjectFactoryUtilException {
-        if (ValidationHelpers.collectionEmpty(entitiesToCopy)) {
+        if (CollectionUtils.isEmpty(entitiesToCopy)) {
             throw new ObjectFactoryUtilException("A lista a ser copiada não possui elementos.");
         }
+    }
+
+    /**
+     * <strong>Método que retorna um objeto copiado à partir de outro de tipo
+     * DIFERENTE.Utiliza a lógica do
+     * {@linkplain #createFromObject(Object, Object) createFromObject} para
+     * copiar </strong>
+     *
+     * @param <T>        tipo do objeto de retorno
+     * @param <S>        tipo do objeto copiado
+     * @param source     S
+     * @param returnType {@linkplain Class}&ltT&gt
+     * @return T
+     * @throws ObjectFactoryUtilException - Exception interna lançada quando ocorrerem erros
+     */
+    @SuppressWarnings("unchecked")
+    public static <T, S> T createFromObject(S source, Class<T> returnType) throws ObjectFactoryUtilException {
+        verifySourceObject(source);
+        Object dest;
+        try {
+            dest = instanciateClass(returnType);
+        } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | IllegalArgumentException | InvocationTargetException ex) {
+            throw new ObjectFactoryUtilException("Erro ao criar instância da classe copiada na ObjectFactoryUtil.", ex);
+        }
+        createFromObject(source, dest);
+        return (T) dest;
     }
 
     /**
      * <strong>Método para retornar um novo objeto criado. Mesma lógica de cópia
      * do {@link #createFromObject(Object, Object) createFromObject}.</strong>
      *
-     * @param <T>
+     * @param <T>    - Tipo do retorno e do objeto copiado
      * @param source T
      * @return {@link Object}
-     * @throws ObjectFactoryUtilException
+     * @throws ObjectFactoryUtilException - Exception interna lançada quando ocorrerem erros
      */
-    public static <T> Object createFromObject(T source) throws ObjectFactoryUtilException {
+    @SuppressWarnings("unchecked")
+    public static <T> T createFromObject(T source) throws ObjectFactoryUtilException {
         verifySourceObject(source);
         Object dest;
         try {
@@ -97,7 +177,7 @@ public final class ObjectFactoryUtil {
             throw new ObjectFactoryUtilException("Erro ao criar instância da classe copiada na ObjectFactoryUtil.", ex);
         }
         createFromObject(source, dest);
-        return dest;
+        return (T) dest;
     }
 
     /**
@@ -120,32 +200,34 @@ public final class ObjectFactoryUtil {
      * <p>
      *
      * @param <T>    method type definer
+     * @param <S>    method type definer
      * @param source &lt T &gt
      * @param dest   &lt T &gt
-     * @throws ObjectFactoryUtilException
+     * @throws ObjectFactoryUtilException - Exception interna lançada quando ocorrerem erros
      */
-    public static <T> void createFromObject(T source, T dest) throws ObjectFactoryUtilException {
+    public static <T, S> void createFromObject(S source, T dest) throws ObjectFactoryUtilException {
         verifySourceAndDestObjects(source, dest);
         List<Field> sourceFields = getFieldsToCopy(source, dest);
         for (Field sourceField : sourceFields) {
             Optional<Field> opDestField = ReflectionUtil.getFieldsAsCollection(dest).stream()
-                    .filter(destField -> destField.getName().toLowerCase().equals(sourceField.getName().toLowerCase()))
+                    .filter(destField -> destField.getName().equalsIgnoreCase(sourceField.getName()))
                     .findAny();
             if (opDestField.isPresent()) {
                 Field destField = opDestField.get();
-                FieldUtil.setProtectedFieldValue(destField.getName(), dest, verifyValue(sourceField, source));
+                Object sourceValue = verifyValue(sourceField, destField, source);
+                FieldUtil.setProtectedFieldValue(destField.getName(), dest, sourceValue);
             }
         }
     }
 
-    private static <T> void verifySourceAndDestObjects(T source, T dest) throws ObjectFactoryUtilException {
+    private static <T, S> void verifySourceAndDestObjects(S source, T dest) throws ObjectFactoryUtilException {
         verifySourceObject(source);
         if (dest == null) {
             throw new ObjectFactoryUtilException("O objeto de destino é nulo!");
         }
     }
 
-    private static <T> void verifySourceObject(T source) throws ObjectFactoryUtilException {
+    private static <S> void verifySourceObject(S source) throws ObjectFactoryUtilException {
         if (source == null) {
             throw new ObjectFactoryUtilException("O objeto a ser copiado é nulo!");
         }
@@ -172,15 +254,15 @@ public final class ObjectFactoryUtil {
      * @param dest   &lt T &gt
      * @return {@link List}&lt {@link Field} &gt
      */
-    private static <T> List<Field> getFieldsToCopy(T source, T dest) {
+    private static <T, S> List<Field> getFieldsToCopy(S source, T dest) {
         List<Field> sourceFields = new ArrayList<>(ReflectionUtil.getFieldsAsCollection(source));
         List<Field> fieldsToRemove = sourceFields.stream()
-                .filter(PREDICATE_MODIFIERS).collect(Collectors.toCollection(ArrayList::new));
+                .filter(PREDICATE_MODIFIERS).collect(Collectors.toCollection(LinkedList::new));
         String[] exclude = getExcludeFromAnnotation(dest);
         if (exclude != null && Array.getLength(exclude) > 0) {
             Arrays.stream(exclude).forEach(excludeField -> {
                 Optional<Field> opField = sourceFields.stream()
-                        .filter(sourceField -> sourceField.getName().toLowerCase().equals(excludeField.toLowerCase()))
+                        .filter(sourceField -> sourceField.getName().equalsIgnoreCase(excludeField))
                         .findAny();
                 if (opField.isPresent() && !fieldsToRemove.contains(opField.get())) {
                     fieldsToRemove.add(opField.get());
@@ -210,6 +292,79 @@ public final class ObjectFactoryUtil {
     }
 
     /**
+     * <strong>Método para verificar os casos especiais em que os tipos do
+     * objeto de origem e destino são diferentes e é necessário um tratamento
+     * específico para retornar o valor correto.</strong>
+     *
+     * <p>
+     * Faz tratamento específicos entre Wrappers e tipos primitivos, tanto do
+     * atributo copiado, quanto do destino. Também possui um tratamento
+     * específico no caso do atributo do objeto copiado ser uma
+     * {@linkplain String} e o atributo do destino ser um {@linkplain Enum}. No
+     * caso de {@linkplain Collection} ou {@linkplain Map}, apenas retorna null,
+     * pois é um tratamento mais específico de implementação.
+     * <p>
+     *
+     * @param <S>         - Tipo do objeto copiado
+     * @param sourceField - {@link Field}
+     * @param destField   - {@link Field}
+     * @param source      - S
+     * @return {@link Object}
+     */
+    private static <S> Object verifyValue(Field sourceField, Field destField, S source) throws ObjectFactoryUtilException {
+        Object sourceValue = FieldUtil.getProtectedFieldValue(sourceField.getName(), source);
+        if (sourceField.getType() != destField.getType()) {
+            if (ReflectionUtil.isWrapperType(sourceField.getType()) && destField.getType().isPrimitive()) {
+                if (sourceValue == null) {
+                    return ReflectionUtil.defaultValueFor(destField.getType());
+                }
+            }
+            if (ReflectionUtil.isWrapperType(destField.getType()) && sourceField.getType().isPrimitive()) {
+                Object defaultValue = ReflectionUtil.defaultValueFor(sourceField.getType());
+                if (Objects.equals(sourceValue, defaultValue)) {
+                    return null;
+                }
+            }
+            if (destField.getType().isEnum()) {
+                if (sourceField.getType().equals(String.class)) {
+                    return findEnumConstantEquivalent(destField.getType(), sourceValue);
+                }
+                return null;
+            }
+            if (sourceField.getType().isEnum()) {
+                if (destField.getType().equals(String.class)) {
+                    if (sourceValue != null) {
+                        return sourceValue.toString();
+                    }
+                }
+                return null;
+            }
+            if (isClassMapCollection(destField.getType()) || isClassMapCollection(sourceField.getType())) {
+                return null;
+            }
+        }
+        return copyValue(sourceField, destField, sourceValue);
+    }
+
+    /**
+     * <strong> Método para encontrar a constante enum equivalente à String que
+     * está sendo copiada.</strong>
+     *
+     * @param type        - {@link Class}&lt?&gt
+     * @param sourceValue {@link Object}
+     * @return {@linkplain Object}
+     */
+    private static Object findEnumConstantEquivalent(Class<?> type, Object sourceValue) {
+        Object[] returnValue = {null};
+        Stream.of(type.getEnumConstants()).forEach(enumConstant -> {
+            if (enumConstant.toString().equals(sourceValue)) {
+                returnValue[0] = enumConstant;
+            }
+        });
+        return returnValue[0];
+    }
+
+    /**
      * <strong>Método para verificar o tipo do valor copiado, com o intuito de
      * definir a melhor forma para copiá-lo.</strong>
      *
@@ -220,45 +375,48 @@ public final class ObjectFactoryUtil {
      * serialização. Caso o valor seja uma {@link Collection} ou um {@link Map},
      * também possui um fluxo para validação dos tipos e devida cópia dos
      * valores. Se não for nenhum desses tipos, é necessário utilizar o método
-     * {@link ObjectFactoryUtil#objectCopy(Object, Class) objectCopy}, que cria uma
+     * {@link ObjectFactoryUtil#serializingCloneObjects(Object, Class) objectCopy}, que cria uma
      * nova instância do objeto e faz a cópia via serialização, para garantir
      * que seja feita a cópia por valor, não por referência.
      * <p>
      *
-     * @param <T>
      * @param sourceField - {@link Field}
-     * @param source      - T
+     * @param sourceValue - {@link Object}
      * @return {@link Object}
+     * @throws ObjectFactoryUtilException - Exceção interna lançada em erros de serialização
      */
-    private static <T> Object verifyValue(Field sourceField, T source) throws ObjectFactoryUtilException {
-        Object sourceValue = FieldUtil.getProtectedFieldValue(sourceField.getName(), source);
-        if (sourceField.getType().isPrimitive() || sourceField.getType().isEnum()) {
+    private static Object copyValue(Field sourceField, Field destField, Object sourceValue) throws ObjectFactoryUtilException {
+        if (isPrimitiveOrEnum(sourceField.getType())) {
             return sourceValue;
         }
-        if (isWrapperType(sourceField.getType())) {
+        if (ReflectionUtil.isWrapperType(sourceField.getType())) {
             try {
-                return serializingClone(sourceValue, sourceField.getType());
-            } catch (IOException ex) {
+                return serializingClone(sourceValue, destField.getType());
+            } catch (IOException | ObjectFactoryUtilException ex) {
                 throw new ObjectFactoryUtilException("Erro ao serializar objeto para copiar o valor.", ex);
             }
         }
         if (isClassMapCollection(sourceField.getType())) {
-            return serializingClone(sourceValue, sourceField.getGenericType());
+            return serializingCloneCollectionMap(sourceValue, destField.getGenericType());
         }
-        return objectCopy(sourceValue, sourceField.getType());
+        try {
+            return serializingCloneObjects(sourceValue, destField.getType());
+        } catch (IOException ex) {
+            throw new ObjectFactoryUtilException("Erro ao serializar objeto para copiar o valor.", ex);
+        }
     }
 
     /**
      * <strong>Cria uma nova instância do tipo da classe especificada.</strong>
      *
-     * @param <T>
+     * @param <T>    - Tipo da classe a ser instanciada
      * @param aClass {@link Class} &lt T &gt
      * @return {@link Object}
-     * @throws NoSuchMethodException
-     * @throws IllegalAccessException
-     * @throws InstantiationException
-     * @throws IllegalArgumentException
-     * @throws InvocationTargetException
+     * @throws NoSuchMethodException     - Exception lançada por problemas ao instanciar a classe
+     * @throws IllegalAccessException    - Exception lançada por problemas ao instanciar a classe
+     * @throws InstantiationException    - Exception lançada por problemas ao instanciar a classe
+     * @throws IllegalArgumentException  - Exception lançada por problemas ao instanciar a classe
+     * @throws InvocationTargetException - Exception lançada por problemas ao instanciar a classe
      */
     private static <T> Object instanciateClass(Class<T> aClass) throws NoSuchMethodException, IllegalAccessException, InstantiationException, IllegalArgumentException, InvocationTargetException {
         Constructor<T> ctor = aClass.getDeclaredConstructor();
@@ -273,9 +431,9 @@ public final class ObjectFactoryUtil {
      * @param aClass - {@link Class}&lt ?&gt
      * @return {@link Object}
      */
-    private static Object serializingClone(Object source, Class<?> aClass) throws IOException, ObjectFactoryUtilException {
+    private static Object serializingClone(Object source, Class<?> aClass) throws ObjectFactoryUtilException, IOException {
         if (source != null) {
-            return serializingClone(null, source, aClass);
+            return serializingCloneObjects(source, aClass);
         }
         return null;
     }
@@ -284,14 +442,14 @@ public final class ObjectFactoryUtil {
      * <strong>Método que efetivamente faz a cópia dos valores via serialização,
      * nos casos de <i>Wrappers</i> e objetos.</strong>
      *
-     * @param clone  - {@link Object}
      * @param source - {@link Object}
      * @param aClass - {@link Class}&lt ?&gt
      * @return {@link Object}
      */
-    private static Object serializingClone(Object clone, Object source, Class<?> aClass) throws IOException, ObjectFactoryUtilException {
+    private static Object serializingCloneObjects(Object source, Class<?> aClass) throws ObjectFactoryUtilException, IOException {
+        Object clone;
         byte[] byteClone;
-        if (aClass.isPrimitive() || isWrapperType(aClass)) {
+        if (aClass.isPrimitive() || ReflectionUtil.isWrapperType(aClass)) {
             byteClone = IOUtils.serialize(source);
             clone = IOUtils.deserialize(byteClone);
         } else {
@@ -309,7 +467,7 @@ public final class ObjectFactoryUtil {
      * @param genericType - {@link Type}
      * @return {@link Object}
      */
-    private static Object serializingClone(Object source, Type genericType) throws ObjectFactoryUtilException {
+    private static Object serializingCloneCollectionMap(Object source, Type genericType) throws ObjectFactoryUtilException {
         Object clone = null;
         if (source != null) {
             try {
@@ -319,7 +477,7 @@ public final class ObjectFactoryUtil {
                 } else {
                     clone = GSON.fromJson(SerializationUtil.getDesserealizedObjectAsString(byteClone), genericType);
                 }
-            } catch (ClassNotFoundException ex) {
+            } catch (ReflectiveOperationException ex) {
                 throw new ObjectFactoryUtilException("Erro ao deserializar collection na cópia de objeto.", ex);
             }
         }
@@ -344,16 +502,16 @@ public final class ObjectFactoryUtil {
      * @param genericType - {@link Type}
      * @param byteClone   - byte[]
      * @return {@link Object}
-     * @throws ObjectFactoryUtilException
-     * @throws ClassNotFoundException
+     * @throws ObjectFactoryUtilException   - Exception interna lançada quando ocorre algum erro
+     * @throws ReflectiveOperationException - Exception lançada se não for possível criar o Parameterized Type
      */
     @SuppressWarnings("unchecked")
-    private static Object verifyList(Object sourceValue, Type genericType, byte[] byteClone) throws ClassNotFoundException, ObjectFactoryUtilException {
+    private static Object verifyList(Object sourceValue, Type genericType, byte[] byteClone) throws ObjectFactoryUtilException, ReflectiveOperationException {
         Object clone = null;
         try {
             verifyType(genericType);
             clone = desserializeCollection(byteClone, genericType);
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException | ObjectFactoryUtilException ex) {
+        } catch (ReflectiveOperationException ex) {
             List<Object> aux = new ArrayList<>(Collections.checkedCollection((Collection<Object>) sourceValue, Object.class));
             if (CollectionUtils.isNotEmpty(aux)) {
                 Class<?> objectType = aux.get(0).getClass();
@@ -376,16 +534,14 @@ public final class ObjectFactoryUtil {
      * <p>
      *
      * @param genericType - {@link Type}
-     * @throws ClassNotFoundException
-     * @throws InstantiationException
-     * @throws IllegalAccessException
+     * @throws ReflectiveOperationException - Exception que pode ser lançada ao tentar instanciar
      */
-    private static void verifyType(Type genericType) throws NoSuchMethodException, InvocationTargetException, ClassNotFoundException, InstantiationException, IllegalAccessException {
+    private static void verifyType(Type genericType) throws ReflectiveOperationException {
         ParameterizedType typeTest = (ParameterizedType) genericType;
         for (Type type : typeTest.getActualTypeArguments()) {
             Class<?> clazz = Class.forName(type.getTypeName());
-            if (!isPrimitiveOrEnum(clazz) && !isWrapperType(clazz)) {
-                instanciateClass(clazz);
+            if (!isPrimitiveOrEnum(clazz) && !ReflectionUtil.isWrapperType(clazz)) {
+                clazz.getDeclaredConstructor().newInstance();
             }
         }
     }
@@ -396,31 +552,6 @@ public final class ObjectFactoryUtil {
 
     private static Class<?> getRawType(Type genericType) throws ClassNotFoundException {
         return Class.forName(((ParameterizedType) genericType).getRawType().getTypeName());
-    }
-
-    /**
-     * <strong>Método para a cópia do valor de um objeto que não seja
-     * <i>Wrapper</i> nem {@link Collection}.</strong>
-     *
-     * @param source - {@link Object}
-     * @param aClass - {@link Class}&lt ?&gt
-     * @return {@link Object}
-     */
-    private static Object objectCopy(Object source, Class<?> aClass) throws ObjectFactoryUtilException {
-        try {
-            Object clone = null;
-            if (source != null) {
-                if (!isClassMapCollection(aClass) && !aClass.isInterface()) {
-                    clone = instanciateClass(aClass);
-                }
-                clone = serializingClone(clone, source, aClass);
-            }
-            return clone;
-        } catch (IllegalAccessException | InstantiationException | NoSuchMethodException | IllegalArgumentException | InvocationTargetException ex) {
-            throw new ObjectFactoryUtilException("Erro ao criar instância da classe copiada na ObjectFactoryUtil.", ex);
-        } catch (IOException ex) {
-            throw new ObjectFactoryUtilException("Erro ao serializar objeto para copiar o valor.", ex);
-        }
     }
 
     /**
@@ -463,83 +594,6 @@ public final class ObjectFactoryUtil {
      */
     private static boolean isMap(Class<?> clazz) {
         return Map.class.isAssignableFrom(clazz);
-    }
-
-    /**
-     * <strong>Método responsável por verificar se o tipo do valor sendo copiado
-     * é um wrapper.</strong>
-     *
-     * @param clazz {@link Class}&lt ? &gt
-     * @return {@link Boolean}
-     */
-    private static boolean isWrapperType(Class<?> clazz) {
-        return WRAPPER_TYPES.contains(clazz)
-                || WRAPPER_TYPES.stream().anyMatch(wrapper -> wrapper.isAssignableFrom(clazz));
-    }
-
-    /**
-     * <strong>Método responsável por criar o {@link Set} com os <i>wrapper
-     * types</i></strong>
-     *
-     * @return {@link Set}&lt {@link Class}&lt ? &gt &gt
-     */
-    private static Set<Class<?>> getWrapperTypes() {
-        Set<Class<?>> wrappers = new HashSet<>();
-        wrappers.add(Boolean.class);
-        wrappers.add(Byte.class);
-        wrappers.add(UUID.class);
-        wrappers.addAll(numberTypes());
-        wrappers.addAll(dateTypes());
-        wrappers.addAll(textTypes());
-        return wrappers;
-    }
-
-    /**
-     * <strong>Método responsável por criar o {@link Set} com os <i>wrapper
-     * types</i> de textos.</strong>
-     *
-     * @return {@link Set}&lt {@link Class}&lt ? &gt &gt
-     */
-    private static Set<Class<?>> textTypes() {
-        Set<Class<?>> aux = new HashSet<>();
-        aux.add(String.class);
-        aux.add(Character.class);
-        aux.add(Format.class);
-        return aux;
-    }
-
-    /**
-     * <strong>Método responsável por criar o {@link Set} com os <i>wrapper
-     * types</i> de datas/horas.</strong>
-     *
-     * @return {@link Set}&lt {@link Class}&lt ? &gt &gt
-     */
-    private static Set<Class<?>> dateTypes() {
-        Set<Class<?>> aux = new HashSet<>();
-        aux.add(Date.class);
-        aux.add(Time.class);
-        aux.add(LocalDateTime.class);
-        aux.add(LocalDate.class);
-        aux.add(LocalTime.class);
-        aux.add(Temporal.class);
-        aux.add(Instant.class);
-        return aux;
-    }
-
-    /**
-     * <strong>Método responsável por criar o {@link Set} com os <i>wrapper
-     * types</i> de números.</strong>
-     *
-     * @return {@link Set}&lt {@link Class}&lt ? &gt &gt
-     */
-    private static Set<Class<?>> numberTypes() {
-        Set<Class<?>> aux = new HashSet<>();
-        aux.add(Integer.class);
-        aux.add(Double.class);
-        aux.add(Float.class);
-        aux.add(Long.class);
-        aux.add(Number.class);
-        return aux;
     }
 
     /**
