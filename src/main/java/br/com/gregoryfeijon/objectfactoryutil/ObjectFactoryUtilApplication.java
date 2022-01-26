@@ -7,10 +7,7 @@ import br.com.gregoryfeijon.objectfactoryutil.util.GsonUtil;
 import br.com.gregoryfeijon.objectfactoryutil.util.LoggerUtil;
 import br.com.gregoryfeijon.objectfactoryutil.util.ObjectFactoryUtil;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -35,6 +32,11 @@ public class ObjectFactoryUtilApplication {
         compareObjects(bars, copyBars, "It's the same collection!");
         Set<Bar> copyFromCopyBars = ObjectFactoryUtil.copyAllObjectsFromCollection(copyBars, HashSet::new);
         compareObjects(copyBars, copyFromCopyBars, "It's the same collection!");
+        List<Foo> foosFromBars = ObjectFactoryUtil.copyAllObjectsFromCollection(copyBars, ArrayList::new, Foo.class);
+        compareObjects(copyBars, copyFromCopyBars, "It's the same collection!");
+        isEqual(foosFromBars.get(0).getSameNameAttribute(), copyBars.get(0).getSameNameAttribute(), "Its not equal!");
+        System.out.println(GsonUtil.getGson().toJson(foosFromBars));
+        System.out.println(GsonUtil.getGson().toJson(copyBars));
     }
 
     private static void copyDifferentType(List<Bar> bars) throws ObjectFactoryUtilException {
