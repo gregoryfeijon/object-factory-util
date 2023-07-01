@@ -7,22 +7,8 @@ import com.google.gson.Gson;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.lang.reflect.*;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -151,7 +137,8 @@ public final class ObjectFactoryUtil {
         Object dest;
         try {
             dest = instanciateClass(returnType);
-        } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | IllegalArgumentException | InvocationTargetException ex) {
+        } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | IllegalArgumentException |
+                 InvocationTargetException ex) {
             throw new ObjectFactoryUtilException("Erro ao criar instância da classe copiada na ObjectFactoryUtil.", ex);
         }
         createFromObject(source, dest);
@@ -173,7 +160,8 @@ public final class ObjectFactoryUtil {
         Object dest;
         try {
             dest = instanciateClass(source.getClass());
-        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException ex) {
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException |
+                 InvocationTargetException ex) {
             throw new ObjectFactoryUtilException("Erro ao criar instância da classe copiada na ObjectFactoryUtil.", ex);
         }
         createFromObject(source, dest);
@@ -313,41 +301,56 @@ public final class ObjectFactoryUtil {
      */
     private static <S> Object verifyValue(Field sourceField, Field destField, S source) throws ObjectFactoryUtilException {
         Object sourceValue = FieldUtil.getProtectedFieldValue(sourceField.getName(), source);
-        if (sourceField.getType() != destField.getType()) {
-            if (ReflectionUtil.isWrapperType(sourceField.getType()) && destField.getType().isPrimitive()) {
-                if (sourceValue == null) {
-                    return ReflectionUtil.defaultValueFor(destField.getType());
-                }
-            }
-            if (ReflectionUtil.isWrapperType(destField.getType()) && sourceField.getType().isPrimitive()) {
-                Object defaultValue = ReflectionUtil.defaultValueFor(sourceField.getType());
-                if (Objects.equals(sourceValue, defaultValue)) {
-                    return null;
-                }
-            }
-            if (destField.getType().isEnum()) {
-                if (sourceField.getType().equals(String.class)) {
-                    return findEnumConstantEquivalent(destField.getType(), sourceValue);
-                } else if(sourceField.getType().isEnum()) {
-                    if (sourceValue != null) {
-                        return findEnumConstantEquivalent(destField.getType(), sourceValue.toString());
-                    }
-                }
-                return null;
-            }
-            if (sourceField.getType().isEnum()) {
-                if (sourceValue != null) {
-                    if (destField.getType().equals(String.class)) {
-                        return sourceValue.toString();
-                    }
-                }
-                return null;
-            }
-            if (isClassMapCollection(destField.getType()) || isClassMapCollection(sourceField.getType())) {
-                return null;
+        Class<?> sourceFieldType = sourceField.getType();
+        Class<?> destFieldType = destField.getType();
+
+        if (sourceFieldType == destFieldType) {
+            return copyValue(sourceField, destField, sourceValue);
+        }
+
+        if (ReflectionUtil.isWrapperType(sourceFieldType) && destFieldType.isPrimitive() && sourceValue == null) {
+            return ReflectionUtil.defaultValueFor(destFieldType);
+        }
+
+        if (ReflectionUtil.isWrapperType(destFieldType) && sourceFieldType.isPrimitive()
+                && Objects.equals(sourceValue, ReflectionUtil.defaultValueFor(sourceFieldType))) {
+            return null;
+        }
+
+        if (sourceFieldType.isEnum() || destFieldType.isEnum()) {
+            return validateEnums(sourceField, destField, sourceValue);
+        }
+
+        if (isClassMapCollection(destFieldType) || isClassMapCollection(sourceFieldType)) {
+            return null;
+        }
+
+        return copyValue(sourceField, destField, sourceValue);
+    }
+
+    /**
+     * <strong>Método validação de enum, para o caso de algum dos valores dos atributos envolvidos
+     * na cópia seja do tipo enum</strong>
+     *
+     * @param sourceField - {@linkplain Field}
+     * @param destField   - {@linkplain Field}
+     * @param sourceValue - {@linkplain Object}
+     * @return {@linkplain Object}
+     */
+    private static Object validateEnums(Field sourceField, Field destField, Object sourceValue) {
+        Class<?> sourceFieldType = sourceField.getType();
+        Class<?> destFieldType = destField.getType();
+        if (destFieldType.isEnum()) {
+            if (sourceFieldType.equals(String.class)) {
+                return findEnumConstantEquivalent(destFieldType, sourceValue);
+            } else if (sourceFieldType.isEnum() && sourceValue != null) {
+                return findEnumConstantEquivalent(destFieldType, sourceValue.toString());
             }
         }
-        return copyValue(sourceField, destField, sourceValue);
+        if (sourceFieldType.isEnum() && (sourceValue != null && destFieldType.equals(String.class))) {
+            return sourceValue.toString();
+        }
+        return null;
     }
 
     /**

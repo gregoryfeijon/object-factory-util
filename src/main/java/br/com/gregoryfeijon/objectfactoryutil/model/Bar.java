@@ -1,6 +1,7 @@
 package br.com.gregoryfeijon.objectfactoryutil.model;
 
 import br.com.gregoryfeijon.objectfactoryutil.annotation.ObjectConstructor;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -8,6 +9,7 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 @ObjectConstructor
 public class Bar implements Serializable {
 
@@ -16,10 +18,4 @@ public class Bar implements Serializable {
 	private long barId;
 	private String sameNameAttribute;
 	private String barName;
-
-	public Bar(long barId, String barName, String sameNameAttribute) {
-		this.barId = barId;
-		this.barName = barName;
-		this.sameNameAttribute = sameNameAttribute;
-	}
 }

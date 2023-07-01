@@ -9,15 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.Temporal;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -27,7 +19,8 @@ import java.util.stream.Collectors;
  */
 public final class ReflectionUtil {
 
-    private ReflectionUtil() {}
+    private ReflectionUtil() {
+    }
 
     private static final Set<Class<?>> WRAPPER_TYPES;
     private static final Map<Class<?>, Object> DEFAULT_VALUES = new HashMap<>();
@@ -58,14 +51,12 @@ public final class ReflectionUtil {
      */
     public static Collection<Method> getMethodsAsCollection(Object object, boolean getFromSuperclass) {
         Class<?> clazz = object.getClass();
-        Collection<Method> methods = Arrays.asList(clazz.getDeclaredMethods()).stream().collect(Collectors.toList());
-        if (getFromSuperclass) {
-            if (clazz.getSuperclass() != null) {
+        Collection<Method> methods = Arrays.stream(clazz.getDeclaredMethods()).collect(Collectors.toList());
+        if (getFromSuperclass && clazz.getSuperclass() != null) {
+            clazz = clazz.getSuperclass();
+            while (clazz != null) {
+                methods.addAll(Arrays.stream(clazz.getDeclaredMethods()).collect(Collectors.toList()));
                 clazz = clazz.getSuperclass();
-                while (clazz != null) {
-                    methods.addAll(Arrays.asList(clazz.getDeclaredMethods()).stream().collect(Collectors.toList()));
-                    clazz = clazz.getSuperclass();
-                }
             }
         }
         return methods;
@@ -92,15 +83,14 @@ public final class ReflectionUtil {
      */
     public static Collection<Field> getFieldsAsCollection(Object object, boolean getFromSuperclass) {
         Class<?> clazz = object.getClass();
-        Collection<Field> fields = Arrays.asList(clazz.getDeclaredFields()).stream().collect(Collectors.toList());
-        if (getFromSuperclass) {
-            if (clazz.getSuperclass() != null) {
+        Collection<Field> fields = Arrays.stream(clazz.getDeclaredFields()).collect(Collectors.toList());
+        if (getFromSuperclass && clazz.getSuperclass() != null) {
+            clazz = clazz.getSuperclass();
+            while (clazz != null) {
+                fields.addAll(Arrays.stream(clazz.getDeclaredFields()).collect(Collectors.toList()));
                 clazz = clazz.getSuperclass();
-                while (clazz != null) {
-                    fields.addAll(Arrays.asList(clazz.getDeclaredFields()).stream().collect(Collectors.toList()));
-                    clazz = clazz.getSuperclass();
-                }
             }
+
         }
         return fields;
     }
